@@ -1,0 +1,36 @@
+secretStore:
+  name: aws-secrets-manager
+  namespace: external-secrets
+  awsRegion: us-east-1
+  credentialsSecret: aws-credentials # K8s Secret storing AWS Access Key and Secret Key
+
+externalSecrets:
+  government:
+    name: government-api-secret
+    namespace: government-api
+    awsKey: loan-app/government-api
+    secretsMapping:
+      DB_PASSWORD: db_password
+
+  loan:
+    name: loan-validator-portal-secret
+    namespace: loan-validator-portal
+    awsKey: loan-app/loan-validator
+    secretsMapping:
+      DB_PASSWORD: db_password
+
+  database:
+    name: postgres-secret
+    namespace: database
+    awsKey: loan-app/database
+    secretsMapping:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+
+  datadog:
+  externalSecret:
+    name: otel-datadog-secret
+    namespace: observability
+    awsKey: loan-app/datadog
+    secretsMapping:
+      DATADOG_API_KEY: datadog_api_key

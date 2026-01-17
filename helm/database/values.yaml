@@ -1,0 +1,50 @@
+image:
+  repository: postgres
+  tag: "15-alpine"
+
+serviceAccount:
+  create: true
+  name: postgres-sa
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/postgres-secrets-role
+
+postgres:
+  db: government_loan_db
+  user: postgres
+
+externalSecrets:
+  enabled: true
+  secretStore:
+    name: aws-secrets-manager
+    kind: SecretStore
+  secrets:
+    - name: postgres-secret
+      remoteRef:
+        key: loan-app/postgres
+      data:
+        - secretKey: POSTGRES_PASSWORD
+          remoteKey: password
+
+persistence:
+  size: 20Gi
+  storageClass: gp2
+
+securityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  fsGroup: 999
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  allowedNamespaces:
+    - government
+    - loan-validator

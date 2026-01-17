@@ -1,0 +1,47 @@
+# argocd/loan-validator-portal-application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loan-validator-portal
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: loan-validator=<ECR_REGISTRY>/loan-validator-portal
+    argocd-image-updater.argoproj.io/loan-validator.update-strategy: digest
+    argocd-image-updater.argoproj.io/loan-validator.allow-tags: regexp:^[0-9a-f]{7}-[0-9]+$
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: loan-application
+  source:
+    repoURL: https://github.com/michealken30/loan-app-config
+    targetRevision: HEAD
+    path: helm/loan-validator-portal
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: loan-validator-portal
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - Validate=true
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
