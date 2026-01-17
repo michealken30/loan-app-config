@@ -1,21 +1,17 @@
 replicaCount: 2
-
 image:
-  repository: <ECR_REGISTRY>/government-api
-  tag: latest
+  repository: docker.io/michealken30/government-api
+  tag: b9d0931-30
   pullPolicy: Always
-
 serviceAccount:
   create: true
   name: government-api-sa
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/government-api-role
-
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8081"
   prometheus.io/path: "/metrics"
-
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65532
@@ -23,7 +19,6 @@ podSecurityContext:
   fsGroup: 65532
   seccompProfile:
     type: RuntimeDefault
-
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -32,12 +27,10 @@ securityContext:
   capabilities:
     drop:
       - ALL
-
 service:
   type: ClusterIP
   port: 8081
   targetPort: 8081
-
 resources:
   limits:
     cpu: 200m
@@ -45,13 +38,11 @@ resources:
   requests:
     cpu: 100m
     memory: 64Mi
-
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 5
   targetCPUUtilizationPercentage: 80
-
 livenessProbe:
   httpGet:
     path: /health
@@ -60,7 +51,6 @@ livenessProbe:
   periodSeconds: 10
   timeoutSeconds: 3
   failureThreshold: 3
-
 readinessProbe:
   httpGet:
     path: /health
@@ -69,7 +59,6 @@ readinessProbe:
   periodSeconds: 5
   timeoutSeconds: 3
   failureThreshold: 3
-
 # # External Secrets Operator configuration
 # externalSecrets:
 #   enabled: true
@@ -83,14 +72,12 @@ readinessProbe:
 #       data:
 #         - secretKey: DB_PASSWORD
 #           remoteKey: db_password
-
 configMap:
   DB_HOST: "postgres-service.database.svc.cluster.local"
   DB_PORT: "5432"
   DB_USER: "postgres"
   DB_NAME: "government_loan_db"
   PORT: "8081"
-
 networkPolicy:
   enabled: true
   policyTypes:

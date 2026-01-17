@@ -1,26 +1,21 @@
 replicaCount: 2
-
 image:
-  repository: <ECR_REGISTRY>/loan-validator-portal
-  tag: latest
+  repository: docker.io/michealken30/loan-validator-portal
+  tag: b9d0931-30
   pullPolicy: Always
-
 nameOverride: ""
 fullnameOverride: ""
-
 # AWS IRSA
 serviceAccount:
   create: true
   name: loan-validator-portal-sa
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/loan-validator-portal-role
-
 # Prometheus scraping
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "8080"
   prometheus.io/path: "/metrics"
-
 # Pod-level security
 podSecurityContext:
   runAsNonRoot: true
@@ -29,7 +24,6 @@ podSecurityContext:
   fsGroup: 65532
   seccompProfile:
     type: RuntimeDefault
-
 # Container-level security
 securityContext:
   allowPrivilegeEscalation: false
@@ -39,12 +33,10 @@ securityContext:
   capabilities:
     drop:
       - ALL
-
 service:
   type: ClusterIP
   port: 8080
   targetPort: 8080
-
 # Resource management
 resources:
   limits:
@@ -53,14 +45,12 @@ resources:
   requests:
     cpu: 150m
     memory: 128Mi
-
 # Horizontal Pod Autoscaling
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 6
   targetCPUUtilizationPercentage: 70
-
 # Health checks
 livenessProbe:
   httpGet:
@@ -70,7 +60,6 @@ livenessProbe:
   periodSeconds: 10
   timeoutSeconds: 3
   failureThreshold: 3
-
 readinessProbe:
   httpGet:
     path: /health
@@ -79,7 +68,6 @@ readinessProbe:
   periodSeconds: 5
   timeoutSeconds: 3
   failureThreshold: 3
-
 # External Secrets Operator
 externalSecrets:
   enabled: true
@@ -95,21 +83,18 @@ externalSecrets:
           remoteKey: jwt_secret
         - secretKey: API_KEY
           remoteKey: api_key
-
 # Application config
 configMap:
   GOVERNMENT_API_BASE_URL: "http://government-api.government-api.svc.cluster.local:8081"
   PORT: "8080"
   ENVIRONMENT: "production"
   LOG_LEVEL: "info"
-
 # Zero-trust networking
 networkPolicy:
   enabled: true
   policyTypes:
     - Ingress
     - Egress
-
   ingress:
     - from:
         - namespaceSelector:
@@ -121,7 +106,6 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 8080
-
   egress:
     - to:
         - namespaceSelector:
@@ -130,7 +114,6 @@ networkPolicy:
       ports:
         - protocol: TCP
           port: 8081
-
     - to:
         - namespaceSelector: {}
       ports:
