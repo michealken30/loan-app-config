@@ -11,9 +11,9 @@ metadata:
     argocd-image-updater.argoproj.io/government-api.allow-tags: regexp:^[0-9a-f]{7}-[0-9]+$
     argocd-image-updater.argoproj.io/write-back-method: git
 spec:
-  project: loan-application
+  project: default
   source:
-    repoURL: https://github.com/your-org/loan-app-manifests
+    repoURL: https://github.com/michealken30/loan-app-config
     targetRevision: HEAD
     path: helm/government-api
     helm:

@@ -8,7 +8,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
-  project: loan-application
+  project: default
   source:
     repoURL: https://github.com/michealken30/loan-app-config
     targetRevision: HEAD

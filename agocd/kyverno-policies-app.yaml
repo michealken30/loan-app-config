@@ -1,34 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-secrets
+  name: kyverno-policies
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "0" # deploy first
 spec:
   project: default
   source:
     repoURL: https://github.com/michealken30/loan-app-config
     targetRevision: HEAD
-    path: helm/external-secrets
-    helm:
-      valueFiles:
-        - values.yaml
+    path: kyverno/policies # folder containing all 10 YAMLs
   destination:
     server: https://kubernetes.default.svc
-    namespace: external-secrets
+    namespace: kyverno # or default namespace if policies are cluster-wide
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+      allowEmpty: false
     syncOptions:
       - Validate=true
       - CreateNamespace=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
