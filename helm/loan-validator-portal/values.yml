@@ -1,7 +1,7 @@
 replicaCount: 2
 image:
   repository: docker.io/michealken30/loan-validator-portal
-  tag: 192dd86-33
+  tag: 1f405a7-34
   pullPolicy: Always
 nameOverride: ""
 fullnameOverride: ""
