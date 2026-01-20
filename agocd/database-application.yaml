@@ -8,10 +8,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
-  project: loan-application
+  project: default
   source:
     repoURL: https://github.com/michealken30/loan-app-config
-    targetRevision: HEAD
+    targetRevision: main
     path: helm/database
     helm:
       valueFiles:

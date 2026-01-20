@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/michealken30/loan-app-config
-    targetRevision: HEAD
+    targetRevision: main
     path: kyverno/policies # folder containing all 10 YAMLs
   destination:
     server: https://kubernetes.default.svc

@@ -16,7 +16,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/michealken30/loan-app-config
-    targetRevision: HEAD
+    targetRevision: main
     path: helm/loan-validator-portal
     helm:
       valueFiles:
