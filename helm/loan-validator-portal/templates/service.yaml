@@ -16,3 +16,7 @@ spec:
   selector:
     {{- include "loan-validator-portal.selectorLabels" . | nindent 4 }}
 {{- end }}
+
+
+
+#
