@@ -1,0 +1,18 @@
+{{- define "loan-validator-portal.service" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "loan-validator-portal.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "loan-validator-portal.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "loan-validator-portal.selectorLabels" . | nindent 4 }}
+{{- end }}
