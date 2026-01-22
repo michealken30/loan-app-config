@@ -42,11 +42,17 @@ resources:
     cpu: 100m
     memory: 128Mi
 
-# externalSecrets:
-#   enabled: true
-#   secretStore:
-#     name: aws-secrets-manager
-#     kind: SecretStore
+externalSecrets:
+  enabled: true
+  secretStore:
+    name: aws-secrets-manager
+    kind: SecretStore
+  datadog:
+    name: otel-datadog-secret
+    namespace: observability
+    awsKey: loan-app/datadog
+    secretsMapping:
+      DATADOG_API_KEY: datadog_api_key
 
 networkPolicy:
   enabled: true

@@ -25,4 +25,3 @@ roleRef:
   kind: Role
   name: {{ include "loan-validator-portal.fullname" . }}-role
   apiGroup: rbac.authorization.k8s.io
-{{- end }}
