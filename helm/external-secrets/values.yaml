@@ -26,11 +26,13 @@ externalSecrets:
     secretsMapping:
       POSTGRES_USER: postgres_user
       POSTGRES_PASSWORD: postgres_password
+      
 
-  datadog:
+datadog:
   externalSecret:
+    enabled: true
     name: otel-datadog-secret
     namespace: observability
     awsKey: loan-app/datadog
     secretsMapping:
-      DATADOG_API_KEY: datadog_api_key
+      DATADOG_API_KEY: datadog_api_keypi_key
