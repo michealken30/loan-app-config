@@ -26,8 +26,8 @@ externalSecrets:
           remoteKey: password
 
 persistence:
-  size: 20Gi
-  storageClass: gp2
+  size: 2Gi
+  storageClass: local-path
 
 securityContext:
   runAsUser: 999
