@@ -2,12 +2,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "loan-validator-portal.fullname" . }}-config
+  name: {{ include "government-api.fullname" . }}-config
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "loan-validator-portal.labels" . | nindent 4 }}
 data:
-{{- range $key, $value := .Values.configMap }}
-  {{ $key }}: {{ $value | quote }}
-{{- end }}
+  {{- toYaml .Values.configMap | nindent 2 }}
 {{- end }}
