@@ -6,6 +6,7 @@ secretStore:
 
 externalSecrets:
   government:
+    enabled: true
     name: government-api-secret
     namespace: government-api
     awsKey: loan-app/government-api
