@@ -13,27 +13,11 @@ spec:
         app: postgres
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
-      # Remove fsGroup if causing issues
       securityContext:
         runAsUser: 999
         runAsGroup: 999
-        # fsGroup: 999  # COMMENT THIS OUT TEMPORARILY
-      initContainers:
-        - name: prepare-data-dir
-          image: busybox:latest
-          command:
-            - sh
-            - -c
-            - |
-              # Create the data directory if it doesn't exist
-              mkdir -p /var/lib/postgresql/data
-              # Set ownership WITHOUT chmod
-              chown 999:999 /var/lib/postgresql/data
-          securityContext:
-            runAsUser: 0  # Run as root for setup
-          volumeMounts:
-            - name: data
-              mountPath: /var/lib/postgresql/data
+        fsGroup: 999  # This handles permissions without root
+        fsGroupChangePolicy: "OnRootMismatch"  # Only change if needed
       containers:
         - name: postgres
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -49,19 +33,15 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
-            # CRITICAL: Prevent permission checking during initdb
-            - name: POSTGRES_INITDB_ARGS
-              value: "--no-locale --encoding=UTF8 --no-sync"
             - name: PGDATA
-              value: /var/lib/postgresql/data
+              value: /var/lib/postgresql/data/pgdata  # Subdirectory avoids lost+found issues
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
+            runAsNonRoot: true
             capabilities:
               drop:
                 - ALL
-            runAsUser: 999
-            runAsGroup: 999
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -69,22 +49,12 @@ spec:
               mountPath: /var/run/postgresql
             - name: tmp
               mountPath: /tmp
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/sh
-                  - -c
-                  - |
-                    # Create database if it doesn't exist
-                    sleep 5
-                    until pg_isready -h localhost; do sleep 2; done
-                    psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB}'" | grep -q 1 || psql -U postgres -c "CREATE DATABASE ${POSTGRES_DB}"
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: postgres-pvc
         - name: postgres-run
-          emptyDir: {}
+          emptyDir:
+            medium: Memory  # Use tmpfs for better performance
         - name: tmp
           emptyDir: {}
