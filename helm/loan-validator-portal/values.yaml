@@ -89,6 +89,10 @@ configMap:
   PORT: "8080"
   ENVIRONMENT: "production"
   LOG_LEVEL: "info"
+  DB_HOST: "postgres-service.database.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_USER: "postgres"
+  DB_NAME: "loan_validator_db"
 # Zero-trust networking
 networkPolicy:
   enabled: true
