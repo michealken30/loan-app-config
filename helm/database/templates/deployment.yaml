@@ -14,42 +14,45 @@ spec:
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       securityContext:
-{{ toYaml .Values.securityContext | indent 8 }}
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        runAsNonRoot: true
       initContainers:
-        - name: init-permissions
-          image: busybox:latest
+        - name: init-db
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           command:
             - sh
             - -c
             - |
-              # Create and set permissions for all required directories
-              mkdir -p /var/lib/postgresql/data/pgdata
-              mkdir -p /var/run/postgresql
-              mkdir -p /tmp
-              mkdir -p /var/tmp
+              # Initialize database in temp directory
+              mkdir -p /tmp/initdb
+              export PGDATA=/tmp/initdb
               
-              # Set ownership
+              # Initialize PostgreSQL
+              initdb -D /tmp/initdb \
+                --username=postgres \
+                --encoding=UTF8 \
+                --locale=en_US.utf8
+              
+              # Copy initialized database to PVC
+              cp -a /tmp/initdb/. /var/lib/postgresql/data/
+              
+              # Fix ownership
               chown -R 999:999 /var/lib/postgresql/data
-              chown -R 999:999 /var/run/postgresql
-              chown -R 999:999 /tmp
-              chown -R 999:999 /var/tmp
-              
-              # Set permissions
-              chmod -R 750 /var/lib/postgresql/data
-              chmod -R 755 /var/run/postgresql
-              chmod -R 777 /tmp
-              chmod -R 777 /var/tmp
-          securityContext:
-            runAsUser: 0  # Run as root
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.db }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-            - name: postgres-run
-              mountPath: /var/run/postgresql
-            - name: tmp
-              mountPath: /tmp
-            - name: var-tmp
-              mountPath: /var/tmp
       containers:
         - name: postgres
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -65,14 +68,8 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
-            # Use subdirectory for PGDATA
             - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
-            # Additional PostgreSQL environment variables to help
-            - name: POSTGRES_INITDB_ARGS
-              value: "--data-checksums"
-            - name: POSTGRES_HOST_AUTH_METHOD
-              value: md5
+              value: /var/lib/postgresql/data
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -86,23 +83,9 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: postgres-run
               mountPath: /var/run/postgresql
-            - name: tmp
-              mountPath: /tmp
-            - name: var-tmp
-              mountPath: /var/tmp
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: postgres-pvc
         - name: postgres-run
-          emptyDir:
-            medium: Memory
-            sizeLimit: 128Mi
-        - name: tmp
-          emptyDir:
-            medium: Memory
-            sizeLimit: 256Mi
-        - name: var-tmp
-          emptyDir:
-            medium: Memory
-            sizeLimit: 256Mi
+          emptyDir: {}
