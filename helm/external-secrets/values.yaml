@@ -36,4 +36,4 @@ datadog:
     namespace: observability
     awsKey: loan-app/datadog
     secretsMapping:
-      DATADOG_API_KEY: datadog_api_keypi_key
+      DATADOG_API_KEY: datadog_api_key
