@@ -15,6 +15,10 @@
 {{- end }}
 {{- end }}
 
+{{- define "loan-validator-portal.configmap" -}}
+{{- include "loan-validator-portal.fullname" . }}-config
+{{- end -}}
+
 {{- define "loan-validator-portal.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
