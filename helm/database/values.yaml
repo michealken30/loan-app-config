@@ -27,7 +27,7 @@ externalSecrets:
 
 persistence:
   size: 2Gi
-  storageClass: local-path
+  storageClass: standard
 
 securityContext:
   runAsUser: 999
