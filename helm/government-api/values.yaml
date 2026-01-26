@@ -87,20 +87,34 @@ networkPolicy:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: loan-validator-portal
+              kubernetes.io/metadata.name: loan-validator-portal
       ports:
         - protocol: TCP
           port: 8081
   egress:
+    # Allow DNS - BOTH TCP and UDP
     - to:
         - namespaceSelector:
             matchLabels:
-              name: database
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow PostgreSQL
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: database
       ports:
         - protocol: TCP
           port: 5432
+    # Allow OpenTelemetry (if observability namespace exists)
     - to:
-        - namespaceSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
       ports:
         - protocol: TCP
-          port: 53
+          port: 4317

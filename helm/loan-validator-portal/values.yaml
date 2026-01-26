@@ -100,28 +100,46 @@ networkPolicy:
     - Ingress
     - Egress
   ingress:
+    # Allow from ingress controller
     - from:
         - namespaceSelector:
             matchLabels:
-              name: ingress-nginx
-        - namespaceSelector:
-            matchLabels:
-              name: government-api
+              kubernetes.io/metadata.name: ingress-nginx
       ports:
         - protocol: TCP
           port: 8080
   egress:
+    # Allow DNS - CRITICAL!
     - to:
         - namespaceSelector:
             matchLabels:
-              name: government-api
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow government-api
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: government-api
       ports:
         - protocol: TCP
           port: 8081
+    # Allow PostgreSQL
     - to:
-        - namespaceSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: database
       ports:
         - protocol: TCP
-          port: 53
-        - protocol: UDP
-          port: 53
+          port: 5432
+    # Allow OpenTelemetry
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 4317
