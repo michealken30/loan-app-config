@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
+  namespace: {{ .Release.Namespace }}
 spec:
   replicas: 1
   selector:
@@ -16,8 +17,8 @@ spec:
       securityContext:
         runAsUser: 999
         runAsGroup: 999
-        fsGroup: 999  # This handles permissions without root
-        fsGroupChangePolicy: "OnRootMismatch"  # Only change if needed
+        fsGroup: 999
+        fsGroupChangePolicy: "OnRootMismatch"
       containers:
         - name: postgres
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
@@ -34,7 +35,7 @@ spec:
                   name: postgres-secret
                   key: POSTGRES_PASSWORD
             - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata  # Subdirectory avoids lost+found issues
+              value: /var/lib/postgresql/data/pgdata
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -49,12 +50,44 @@ spec:
               mountPath: /var/run/postgresql
             - name: tmp
               mountPath: /tmp
+            - name: init-script  # ← ADD THIS
+              mountPath: /docker-entrypoint-initdb.d
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U postgres
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: postgres-pvc
         - name: postgres-run
           emptyDir:
-            medium: Memory  # Use tmpfs for better performance
+            medium: Memory
         - name: tmp
           emptyDir: {}
+        - name: init-script  # ← ADD THIS
+          configMap:
+            name: postgres-init-script

@@ -1,0 +1,417 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: postgres
+    component: init-scripts
+data:
+  # Script 01: Create databases
+  01-create-databases.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "================================================"
+    echo "Step 1: Creating databases..."
+    echo "================================================"
+    
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+      -- Create government_loan_db if not exists
+      SELECT 'CREATE DATABASE government_loan_db'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'government_loan_db')\gexec
+      
+      -- Create loan_validator_db if not exists
+      SELECT 'CREATE DATABASE loan_validator_db'
+      WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'loan_validator_db')\gexec
+      
+      -- Grant privileges
+      GRANT ALL PRIVILEGES ON DATABASE government_loan_db TO ${POSTGRES_USER};
+      GRANT ALL PRIVILEGES ON DATABASE loan_validator_db TO ${POSTGRES_USER};
+    EOSQL
+    
+    echo "✅ Databases created successfully"
+
+  # Script 02: Initialize government_loan_db schema
+  02-init-government-loan-schema.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "================================================"
+    echo "Step 2: Initializing government_loan_db schema..."
+    echo "================================================"
+    
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname government_loan_db <<-EOSQL
+      -- Enable UUID extension (useful for unique identifiers)
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+      
+      -- Create customers table
+      CREATE TABLE IF NOT EXISTS customers (
+          id SERIAL PRIMARY KEY,
+          customer_uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
+          first_name VARCHAR(100) NOT NULL,
+          last_name VARCHAR(100) NOT NULL,
+          email VARCHAR(255) UNIQUE,
+          phone VARCHAR(20),
+          date_of_birth DATE NOT NULL,
+          national_id VARCHAR(50),
+          address TEXT,
+          loan_amount_requested DECIMAL(15, 2) NOT NULL CHECK (loan_amount_requested > 0),
+          loan_status VARCHAR(50) NOT NULL DEFAULT 'Pending' 
+              CHECK (loan_status IN ('Approved', 'Pending', 'Rejected', 'Under Review', 'Disbursed', 'Cancelled')),
+          loan_purpose VARCHAR(255),
+          income_verified BOOLEAN DEFAULT false,
+          credit_score INTEGER CHECK (credit_score >= 300 AND credit_score <= 850),
+          approved_amount DECIMAL(15, 2),
+          interest_rate DECIMAL(5, 2),
+          loan_term_months INTEGER,
+          disbursement_date TIMESTAMP,
+          rejection_reason TEXT,
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          created_by VARCHAR(100),
+          updated_by VARCHAR(100)
+      );
+      
+      -- Create indexes for performance
+      CREATE INDEX IF NOT EXISTS idx_customers_names 
+          ON customers(LOWER(first_name), LOWER(last_name));
+      
+      CREATE INDEX IF NOT EXISTS idx_customers_status 
+          ON customers(loan_status);
+      
+      CREATE INDEX IF NOT EXISTS idx_customers_created_at 
+          ON customers(created_at DESC);
+      
+      CREATE INDEX IF NOT EXISTS idx_customers_email 
+          ON customers(email) WHERE email IS NOT NULL;
+      
+      -- Create loan_applications table (audit trail)
+      CREATE TABLE IF NOT EXISTS loan_applications (
+          id SERIAL PRIMARY KEY,
+          application_uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
+          customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+          application_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          status VARCHAR(50) NOT NULL,
+          reviewer_id INTEGER,
+          review_date TIMESTAMP,
+          review_notes TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_loan_applications_customer 
+          ON loan_applications(customer_id);
+      
+      CREATE INDEX IF NOT EXISTS idx_loan_applications_status 
+          ON loan_applications(status);
+      
+      -- Create function to update updated_at timestamp
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS \$\$
+      BEGIN
+          NEW.updated_at = CURRENT_TIMESTAMP;
+          RETURN NEW;
+      END;
+      \$\$ language 'plpgsql';
+      
+      -- Create triggers for auto-updating updated_at
+      DROP TRIGGER IF EXISTS update_customers_updated_at ON customers;
+      CREATE TRIGGER update_customers_updated_at
+          BEFORE UPDATE ON customers
+          FOR EACH ROW
+          EXECUTE FUNCTION update_updated_at_column();
+      
+      DROP TRIGGER IF EXISTS update_loan_applications_updated_at ON loan_applications;
+      CREATE TRIGGER update_loan_applications_updated_at
+          BEFORE UPDATE ON loan_applications
+          FOR EACH ROW
+          EXECUTE FUNCTION update_updated_at_column();
+      
+      -- Insert sample data (only if table is empty)
+      INSERT INTO customers (
+          first_name, 
+          last_name, 
+          email,
+          phone,
+          date_of_birth, 
+          national_id,
+          address,
+          loan_amount_requested, 
+          loan_status,
+          loan_purpose,
+          income_verified,
+          credit_score,
+          approved_amount,
+          interest_rate,
+          loan_term_months,
+          created_by
+      ) 
+      SELECT 
+          'John', 'Doe', 'john.doe@example.com', '+1-555-0101',
+          '1985-05-15', 'GOV123456', '123 Main St, Springfield',
+          50000.00, 'Approved', 'Home Renovation', true, 720, 50000.00, 5.5, 60, 'system'
+      WHERE NOT EXISTS (SELECT 1 FROM customers WHERE email = 'john.doe@example.com')
+      
+      UNION ALL
+      
+      SELECT 
+          'Jane', 'Smith', 'jane.smith@example.com', '+1-555-0102',
+          '1990-08-22', 'GOV789012', '456 Oak Ave, Springfield',
+          75000.00, 'Pending', 'Business Expansion', true, 680, NULL, NULL, NULL, 'system'
+      WHERE NOT EXISTS (SELECT 1 FROM customers WHERE email = 'jane.smith@example.com')
+      
+      UNION ALL
+      
+      SELECT 
+          'Michael', 'Johnson', 'michael.j@example.com', '+1-555-0103',
+          '1978-03-10', 'GOV345678', '789 Pine Rd, Springfield',
+          100000.00, 'Disbursed', 'Real Estate Investment', true, 750, 100000.00, 4.8, 120, 'system'
+      WHERE NOT EXISTS (SELECT 1 FROM customers WHERE email = 'michael.j@example.com')
+      
+      UNION ALL
+      
+      SELECT 
+          'Sarah', 'Williams', 'sarah.w@example.com', '+1-555-0104',
+          '1992-11-30', 'GOV901234', '321 Elm St, Springfield',
+          35000.00, 'Under Review', 'Education', false, 650, NULL, NULL, NULL, 'system'
+      WHERE NOT EXISTS (SELECT 1 FROM customers WHERE email = 'sarah.w@example.com')
+      
+      UNION ALL
+      
+      SELECT 
+          'David', 'Brown', 'david.b@example.com', '+1-555-0105',
+          '1988-07-18', 'GOV567890', '654 Maple Dr, Springfield',
+          60000.00, 'Rejected', 'Debt Consolidation', true, 580, NULL, NULL, NULL, 'system'
+      WHERE NOT EXISTS (SELECT 1 FROM customers WHERE email = 'david.b@example.com');
+      
+      -- Log initialization
+      DO \$\$
+      DECLARE
+          customer_count INTEGER;
+      BEGIN
+          SELECT COUNT(*) INTO customer_count FROM customers;
+          RAISE NOTICE 'Government Loan DB initialized with % customers', customer_count;
+      END \$\$;
+    EOSQL
+    
+    echo "✅ government_loan_db schema initialized successfully"
+
+  # Script 03: Initialize loan_validator_db schema
+  03-init-loan-validator-schema.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "================================================"
+    echo "Step 3: Initializing loan_validator_db schema..."
+    echo "================================================"
+    
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname loan_validator_db <<-EOSQL
+      -- Enable UUID extension
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+      
+      -- Enable pgcrypto for password hashing
+      CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+      
+      -- Create users table (portal authentication)
+      CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          user_uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password_hash VARCHAR(255) NOT NULL,
+          first_name VARCHAR(100) NOT NULL,
+          last_name VARCHAR(100) NOT NULL,
+          role VARCHAR(50) NOT NULL DEFAULT 'validator' 
+              CHECK (role IN ('admin', 'validator', 'reviewer', 'viewer')),
+          is_active BOOLEAN DEFAULT true,
+          last_login TIMESTAMP,
+          failed_login_attempts INTEGER DEFAULT 0,
+          locked_until TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+      
+      -- Create indexes
+      CREATE INDEX IF NOT EXISTS idx_users_username 
+          ON users(username);
+      
+      CREATE INDEX IF NOT EXISTS idx_users_email 
+          ON users(email);
+      
+      CREATE INDEX IF NOT EXISTS idx_users_active 
+          ON users(is_active) WHERE is_active = true;
+      
+      -- Create sessions table (track user sessions)
+      CREATE TABLE IF NOT EXISTS user_sessions (
+          id SERIAL PRIMARY KEY,
+          session_uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          token_hash VARCHAR(255) NOT NULL,
+          ip_address INET,
+          user_agent TEXT,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_sessions_user 
+          ON user_sessions(user_id);
+      
+      CREATE INDEX IF NOT EXISTS idx_sessions_token 
+          ON user_sessions(token_hash);
+      
+      CREATE INDEX IF NOT EXISTS idx_sessions_expires 
+          ON user_sessions(expires_at);
+      
+      -- Create audit_logs table
+      CREATE TABLE IF NOT EXISTS audit_logs (
+          id SERIAL PRIMARY KEY,
+          log_uuid UUID DEFAULT uuid_generate_v4() UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          action VARCHAR(100) NOT NULL,
+          entity_type VARCHAR(50),
+          entity_id INTEGER,
+          old_values JSONB,
+          new_values JSONB,
+          ip_address INET,
+          user_agent TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_user 
+          ON audit_logs(user_id);
+      
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_action 
+          ON audit_logs(action);
+      
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created 
+          ON audit_logs(created_at DESC);
+      
+      -- Create function to update updated_at
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS \$\$
+      BEGIN
+          NEW.updated_at = CURRENT_TIMESTAMP;
+          RETURN NEW;
+      END;
+      \$\$ language 'plpgsql';
+      
+      -- Create trigger for users table
+      DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+      CREATE TRIGGER update_users_updated_at
+          BEFORE UPDATE ON users
+          FOR EACH ROW
+          EXECUTE FUNCTION update_updated_at_column();
+      
+      -- Insert default admin user (only if no users exist)
+      -- Password is 'admin123' - CHANGE THIS IN PRODUCTION!
+      INSERT INTO users (
+          username,
+          email,
+          password_hash,
+          first_name,
+          last_name,
+          role
+      )
+      SELECT 
+          'admin',
+          'admin@loanvalidator.local',
+          crypt('admin123', gen_salt('bf')),
+          'System',
+          'Administrator',
+          'admin'
+      WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'admin');
+      
+      -- Insert sample validator users
+      INSERT INTO users (
+          username,
+          email,
+          password_hash,
+          first_name,
+          last_name,
+          role
+      )
+      SELECT 
+          'validator1',
+          'validator1@loanvalidator.local',
+          crypt('validator123', gen_salt('bf')),
+          'Alice',
+          'Validator',
+          'validator'
+      WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'validator1')
+      
+      UNION ALL
+      
+      SELECT 
+          'reviewer1',
+          'reviewer1@loanvalidator.local',
+          crypt('reviewer123', gen_salt('bf')),
+          'Bob',
+          'Reviewer',
+          'reviewer'
+      WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'reviewer1');
+      
+      -- Log initialization
+      DO \$\$
+      DECLARE
+          user_count INTEGER;
+      BEGIN
+          SELECT COUNT(*) INTO user_count FROM users;
+          RAISE NOTICE 'Loan Validator DB initialized with % users', user_count;
+          RAISE NOTICE 'Default admin credentials: username=admin, password=admin123 (CHANGE IN PRODUCTION!)';
+      END \$\$;
+    EOSQL
+    
+    echo "✅ loan_validator_db schema initialized successfully"
+
+  # Script 04: Grant permissions and finalize
+  04-finalize.sh: |
+    #!/bin/bash
+    set -e
+    
+    echo "================================================"
+    echo "Step 4: Finalizing setup..."
+    echo "================================================"
+    
+    # Grant all privileges on both databases
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
+      GRANT ALL PRIVILEGES ON DATABASE government_loan_db TO ${POSTGRES_USER};
+      GRANT ALL PRIVILEGES ON DATABASE loan_validator_db TO ${POSTGRES_USER};
+    EOSQL
+    
+    # Grant schema permissions for government_loan_db
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname government_loan_db <<-EOSQL
+      GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${POSTGRES_USER};
+      GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${POSTGRES_USER};
+      GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO ${POSTGRES_USER};
+      
+      -- Set default privileges for future objects
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${POSTGRES_USER};
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${POSTGRES_USER};
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${POSTGRES_USER};
+    EOSQL
+    
+    # Grant schema permissions for loan_validator_db
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname loan_validator_db <<-EOSQL
+      GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${POSTGRES_USER};
+      GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${POSTGRES_USER};
+      GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO ${POSTGRES_USER};
+      
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${POSTGRES_USER};
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${POSTGRES_USER};
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${POSTGRES_USER};
+    EOSQL
+    
+    echo "================================================"
+    echo "✅ Database initialization completed successfully!"
+    echo "================================================"
+    echo ""
+    echo "Databases created:"
+    echo "  - government_loan_db (with customers and loan_applications tables)"
+    echo "  - loan_validator_db (with users, sessions, and audit_logs tables)"
+    echo ""
+    echo "⚠️  SECURITY WARNING:"
+    echo "  Default admin password is 'admin123'"
+    echo "  Change this immediately in production!"
+    echo "================================================"
