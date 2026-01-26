@@ -14,6 +14,7 @@ externalSecrets:
       DB_PASSWORD: db_password
 
   loan:
+    enabled: true
     name: loan-validator-portal-secret
     namespace: loan-validator-portal
     awsKey: loan-app/loan-validator
@@ -21,6 +22,7 @@ externalSecrets:
       DB_PASSWORD: db_password
 
   database:
+    enabled: true
     name: postgres-secret
     namespace: database
     awsKey: loan-app/database
