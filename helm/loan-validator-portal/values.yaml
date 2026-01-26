@@ -85,7 +85,7 @@ externalSecrets:
           remoteKey: api_key
 # Application config
 configMap:
-  GOVERNMENT_API_BASE_URL: "http://government-api.government-api.svc.cluster.local:8081"
+  GOV_BANK_URL: "http://government-api.government-api.svc.cluster.local:8081"
   PORT: "8080"
   ENVIRONMENT: "production"
   LOG_LEVEL: "info"
