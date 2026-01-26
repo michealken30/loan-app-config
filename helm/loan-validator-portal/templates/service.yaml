@@ -1,4 +1,3 @@
-{{- define "loan-validator-portal.service" }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -15,8 +14,3 @@ spec:
       name: http
   selector:
     {{- include "loan-validator-portal.selectorLabels" . | nindent 4 }}
-{{- end }}
-
-
-
-#
