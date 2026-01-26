@@ -90,4 +90,4 @@ spec:
           emptyDir: {}
         - name: init-script  # ← ADD THIS
           configMap:
-            name: postgres-init-script
+            name: postgres-init-scripts
