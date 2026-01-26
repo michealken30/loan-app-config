@@ -1,7 +1,7 @@
 replicaCount: 2
 image:
   repository: docker.io/michealken30/government-api
-  tag: 1f405a7-34
+  tag: 95730d9-36
   pullPolicy: Always
 serviceAccount:
   create: true
